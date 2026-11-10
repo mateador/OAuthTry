@@ -25,6 +25,7 @@ import org.springframework.security.oauth2.server.authorization.client.Registere
 import org.springframework.security.oauth2.server.authorization.config.annotation.web.configuration.OAuth2AuthorizationServerConfiguration;
 import org.springframework.security.oauth2.server.authorization.config.annotation.web.configurers.OAuth2AuthorizationServerConfigurer;
 import org.springframework.security.oauth2.server.authorization.settings.AuthorizationServerSettings;
+import org.springframework.security.oauth2.server.authorization.settings.ClientSettings;
 import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
@@ -137,7 +138,20 @@ public class SecurityConfig {
                 .scope("weather.read")
                 .build();
 
-        return new InMemoryRegisteredClientRepository(registeredClient);
+        // Public client (e.g. a single-page app): cannot keep a secret, so it authenticates
+        // with PKCE alone (RFC 7636): requests without a code_challenge are rejected.
+        // No client_credentials/refresh_token grants for it.
+        RegisteredClient spaClient = RegisteredClient.withId(UUID.randomUUID().toString())
+                .clientId("spa-client")
+                .clientAuthenticationMethod(ClientAuthenticationMethod.NONE)
+                .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
+                .redirectUri("http://127.0.0.1:3000/callback")
+                .scope(OidcScopes.OPENID)
+                .scope("weather.read")
+                .clientSettings(ClientSettings.builder().requireProofKey(true).build())
+                .build();
+
+        return new InMemoryRegisteredClientRepository(registeredClient, spaClient);
     }
 
     /**
